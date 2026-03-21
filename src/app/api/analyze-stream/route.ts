@@ -4,6 +4,7 @@ import { PROVIDERS } from '@/lib/providers/config';
 import { fetchPrices, fetchOHLCV } from '@/lib/tools/price-fetcher';
 import { fetchNews, analyzeNewsSentiment } from '@/lib/tools/news-fetcher';
 import { calculateAllIndicators } from '@/lib/tools/indicators';
+import { fetchPrediction } from '@/lib/tools/prediction-fetcher';
 import { randomUUID } from 'crypto';
 
 // Helper to send SSE event
@@ -68,6 +69,23 @@ const TOOL_DEFINITIONS = [
       },
     },
   },
+  {
+    type: 'function',
+    function: {
+      name: 'fetch_prediction',
+      description: 'Fetch ML model prediction for a forex/commodity symbol (e.g., XAUUSD, XAGUSD). Returns predicted direction, predicted close price, and ATR. NOTE: This is an experimental ML model — use as one signal among many, not as the sole basis for a recommendation.',
+      parameters: {
+        type: 'object',
+        properties: {
+          symbol: {
+            type: 'string',
+            description: 'The forex/commodity symbol (e.g., XAUUSD for gold, XAGUSD for silver)',
+          },
+        },
+        required: ['symbol'],
+      },
+    },
+  },
 ];
 
 // System prompt for trading analysis
@@ -76,10 +94,21 @@ const SYSTEM_PROMPT = `You are an expert trading analyst with deep knowledge of 
 When analyzing:
 1. First, examine any provided chart images carefully for patterns, trends, support/resistance levels
 2. Use the available tools to fetch current prices, news, and technical indicators
-3. Consider both technical and fundamental factors
-4. Provide a clear recommendation: BUY, SELL, or HOLD
-5. ALWAYS provide specific trading levels (entry, stop loss, take profit) when recommending BUY or SELL
-6. If no symbol is provided by the user, IDENTIFY the symbol from the chart or determine the most likely trading pair
+3. For forex/commodity symbols (e.g., XAUUSD, XAGUSD), use the fetch_prediction tool to get the ML model's prediction
+4. Consider both technical and fundamental factors
+5. Provide a clear recommendation: BUY, SELL, or HOLD
+6. ALWAYS provide specific trading levels (entry, stop loss, take profit) when recommending BUY or SELL
+7. If no symbol is provided by the user, IDENTIFY the symbol from the chart or determine the most likely trading pair
+8. If the user provides trading parameters (balance, risk %, lot size, R:R), factor them into your analysis:
+   - Calculate suggested position size based on balance and risk %
+   - Adjust stop loss and take profit to match the desired R:R ratio
+   - Provide lot size recommendations if balance is given
+
+IMPORTANT - ML PREDICTION TOOL:
+The fetch_prediction tool calls an experimental ML model trained on XAUUSD and XAGUSD hourly data. It uses 20+ technical indicators as input features, but that does NOT make it accurate — it simply means the model has already seen those indicators. Backtest results show mediocre accuracy:
+- XAUUSD: 54% win rate, direction accuracy ~53% (barely above coin flip)
+- XAGUSD: 49% win rate, direction accuracy ~50% (essentially a coin flip)
+DO NOT rely on this prediction. It is just one weak signal. Your own technical analysis, chart patterns, price action, and fundamentals should carry far more weight. If the ML prediction happens to agree with your analysis, mention it briefly, but do NOT let it increase your confidence significantly. If it disagrees, ignore it and go with your analysis. Always be transparent about the model's limitations when mentioning it.
 
 ★★★ CRITICAL FORMATTING RULES - STRICT COMPLIANCE REQUIRED ★★★
 
@@ -115,7 +144,7 @@ TAKE_PROFIT_1: [price number only]  <-- Plain number only
 TAKE_PROFIT_2: [price number only]  <-- Plain number only
 TAKE_PROFIT_3: [price number only]  <-- Plain number only
 RISK_REWARD: [e.g., 1:2.5]  <-- Plain text ratio
-REASON: [Your comprehensive analysis - MARKDOWN IS ALLOWED AND ENCOURAGED HERE. Include:\n- Technical analysis (trend, patterns, indicators)\n- Support and resistance levels identified\n- Market sentiment from news\n- Why the entry price is chosen\n- Why the stop loss is set at that level\n- Why take profit targets are set at those levels\n- Risk factors and considerations\n- Timeframe recommendations]\n\nBe objective and consider both bullish and bearish scenarios before making a recommendation. For HOLD recommendations, explain why it's better to wait.`;
+REASON: [Your comprehensive analysis - MARKDOWN IS ALLOWED AND ENCOURAGED HERE. Include:\n- Technical analysis (trend, patterns, indicators)\n- Support and resistance levels identified\n- Market sentiment from news\n- ML prediction signal and how it aligns with your analysis\n- If user provided trading params: position sizing calculation, suggested lot size\n- Why the entry price is chosen\n- Why the stop loss is set at that level\n- Why take profit targets are set at those levels\n- Risk factors and considerations\n- Timeframe recommendations]\n\nBe objective and consider both bullish and bearish scenarios before making a recommendation. For HOLD recommendations, explain why it's better to wait.`;
 
 // Execute tool call
 async function executeToolCall(name: TradingTool, args: Record<string, unknown>): Promise<{ success: boolean; data?: unknown; error?: string }> {
@@ -131,6 +160,10 @@ async function executeToolCall(name: TradingTool, args: Record<string, unknown>)
         return { success: true, data: { news: result.data, sentiment: analyzeNewsSentiment(result.data) } };
       }
       return result;
+    }
+    case 'fetch_prediction': {
+      const symbol = args.symbol as string;
+      return await fetchPrediction(symbol);
     }
     case 'calculate_indicators': {
       const symbol = args.symbol as string;
@@ -158,16 +191,27 @@ function buildMessages(
   provider: ProviderType,
   images: string[],
   symbol?: string,
-  context?: string
+  context?: string,
+  tradingParams?: { balance?: number; riskReward?: string; lotSize?: number; riskPercent?: number }
 ): unknown[] {
   const userContent: unknown[] = [];
-  
+
   let textContent = 'Please analyze this trading opportunity.';
   if (symbol) {
     textContent += ` Symbol: ${symbol}.`;
   }
   if (context) {
     textContent += ` Additional context: ${context}`;
+  }
+  if (tradingParams) {
+    const parts: string[] = [];
+    if (tradingParams.balance) parts.push(`Account balance: $${tradingParams.balance}`);
+    if (tradingParams.riskPercent) parts.push(`Risk per trade: ${tradingParams.riskPercent}%`);
+    if (tradingParams.riskReward) parts.push(`Desired R:R ratio: ${tradingParams.riskReward}`);
+    if (tradingParams.lotSize) parts.push(`Preferred lot size: ${tradingParams.lotSize}`);
+    if (parts.length > 0) {
+      textContent += ` Trading parameters: ${parts.join(', ')}. Please calculate position sizing and adjust levels accordingly.`;
+    }
   }
   
   if (images.length > 0) {
@@ -582,7 +626,7 @@ export async function POST(request: NextRequest) {
   
   try {
     const body = await request.json();
-    const { images, symbol, context, provider, model, apiKey } = body;
+    const { images, symbol, context, provider, model, apiKey, tradingParams } = body;
 
     if (!provider || !model || !apiKey) {
       return new Response(
@@ -618,7 +662,7 @@ export async function POST(request: NextRequest) {
 
         try {
           // Build messages
-          const messages = buildMessages(provider as ProviderType, images, symbol, context);
+          const messages = buildMessages(provider as ProviderType, images, symbol, context, tradingParams);
 
           controller.enqueue(sendEvent(encoder, 'status', {
             message: 'Sending request to AI model...'

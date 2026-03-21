@@ -420,7 +420,37 @@ function ImageInput() {
 
 // Trading Inputs Component
 function TradingInputs() {
-  const { symbol, setSymbol, context, setContext } = useTradingStore();
+  const { symbol, setSymbol, context, setContext, tradingParams, setTradingParams } = useTradingStore();
+  const [showParams, setShowParams] = useState(false);
+  const [rawParams, setRawParams] = useState({
+    balance: tradingParams.balance?.toString() ?? '',
+    riskPercent: tradingParams.riskPercent?.toString() ?? '',
+    lotSize: tradingParams.lotSize?.toString() ?? '',
+  });
+
+  const handleNumericChange = (field: 'balance' | 'riskPercent' | 'lotSize', value: string) => {
+    setRawParams(prev => ({ ...prev, [field]: value }));
+    const num = parseFloat(value);
+    setTradingParams({
+      ...tradingParams,
+      [field]: value === '' ? undefined : isNaN(num) ? undefined : num,
+    });
+  };
+
+  const handleLotSizeBlur = () => {
+    const num = parseFloat(rawParams.lotSize);
+    if (rawParams.lotSize !== '' && !isNaN(num)) {
+      if (num < 0.01) {
+        toast.error('Minimum lot size is 0.01');
+        setRawParams(prev => ({ ...prev, lotSize: '0.01' }));
+        setTradingParams({ ...tradingParams, lotSize: 0.01 });
+      } else if (num > 100) {
+        toast.error('Maximum lot size is 100');
+        setRawParams(prev => ({ ...prev, lotSize: '100' }));
+        setTradingParams({ ...tradingParams, lotSize: 100 });
+      }
+    }
+  };
 
   return (
     <Card>
@@ -430,7 +460,7 @@ function TradingInputs() {
           Trading Details
         </CardTitle>
         <CardDescription>
-          Optional: Add symbol and additional context
+          Optional: Add symbol, context, and trading parameters
         </CardDescription>
       </CardHeader>
       <CardContent className="space-y-4">
@@ -438,7 +468,7 @@ function TradingInputs() {
           <Label htmlFor="symbol">Symbol (Optional)</Label>
           <Input
             id="symbol"
-            placeholder="e.g., BTC, ETH, AAPL, TSLA"
+            placeholder="e.g., BTC, ETH, AAPL, XAUUSD"
             value={symbol}
             onChange={(e) => setSymbol(e.target.value.toUpperCase())}
           />
@@ -453,6 +483,64 @@ function TradingInputs() {
             rows={3}
           />
         </div>
+
+        <button
+          type="button"
+          className="flex items-center gap-1 text-sm text-muted-foreground hover:text-foreground transition-colors"
+          onClick={() => setShowParams(!showParams)}
+        >
+          <Settings className="h-4 w-4" />
+          Trading Parameters
+          {showParams ? <ChevronUp className="h-3 w-3" /> : <ChevronDown className="h-3 w-3" />}
+        </button>
+
+        {showParams && (
+          <div className="grid grid-cols-2 gap-3 pt-1">
+            <div className="space-y-1.5">
+              <Label htmlFor="balance" className="text-xs">Balance ($)</Label>
+              <Input
+                id="balance"
+                inputMode="decimal"
+                placeholder="e.g., 10000"
+                value={rawParams.balance}
+                onChange={(e) => handleNumericChange('balance', e.target.value)}
+              />
+            </div>
+            <div className="space-y-1.5">
+              <Label htmlFor="riskPercent" className="text-xs">Risk per Trade (%)</Label>
+              <Input
+                id="riskPercent"
+                inputMode="decimal"
+                placeholder="e.g., 1 or 2"
+                value={rawParams.riskPercent}
+                onChange={(e) => handleNumericChange('riskPercent', e.target.value)}
+              />
+            </div>
+            <div className="space-y-1.5">
+              <Label htmlFor="riskReward" className="text-xs">R:R Ratio</Label>
+              <Input
+                id="riskReward"
+                placeholder="e.g., 1:2 or 1:3"
+                value={tradingParams.riskReward || ''}
+                onChange={(e) => setTradingParams({
+                  ...tradingParams,
+                  riskReward: e.target.value || undefined,
+                })}
+              />
+            </div>
+            <div className="space-y-1.5">
+              <Label htmlFor="lotSize" className="text-xs">Lot Size (0.01 - 100)</Label>
+              <Input
+                id="lotSize"
+                inputMode="decimal"
+                placeholder="e.g., 0.01 or 0.1"
+                value={rawParams.lotSize}
+                onChange={(e) => handleNumericChange('lotSize', e.target.value)}
+                onBlur={handleLotSizeBlur}
+              />
+            </div>
+          </div>
+        )}
       </CardContent>
     </Card>
   );
@@ -481,6 +569,8 @@ function ToolCallLog({ toolCalls }: { toolCalls: ToolCall[] }) {
         return 'Fetching Prices';
       case 'fetch_news':
         return 'Fetching News';
+      case 'fetch_prediction':
+        return 'ML Prediction';
       case 'calculate_indicators':
         return 'Calculating Indicators';
       default:
@@ -966,6 +1056,7 @@ function AnalyzePage({ onBack }: { onBack: () => void }) {
     images,
     symbol,
     context,
+    tradingParams,
     selectedProvider,
     providers,
     isAnalyzing,
@@ -1097,6 +1188,7 @@ function AnalyzePage({ onBack }: { onBack: () => void }) {
           provider: selectedProvider,
           model,
           apiKey,
+          tradingParams: (tradingParams.balance || tradingParams.riskPercent || tradingParams.riskReward || tradingParams.lotSize) ? tradingParams : undefined,
         }),
         signal: controller.signal,
       });
@@ -1243,7 +1335,7 @@ function AnalyzePage({ onBack }: { onBack: () => void }) {
         isRunningRef.current = false;
       }
     }
-  }, [images, symbol, context, selectedProvider, providers, setIsAnalyzing, clearToolCalls, addAnalysis, clearImages, setSymbol, setContext, addToolCall]);
+  }, [images, symbol, context, tradingParams, selectedProvider, providers, setIsAnalyzing, clearToolCalls, addAnalysis, clearImages, setSymbol, setContext, addToolCall]);
 
   // Auto-start analysis only if not cancelled
   useEffect(() => {
@@ -1354,9 +1446,11 @@ function AnalyzePage({ onBack }: { onBack: () => void }) {
 // Main Page Component
 export default function TradingPlatform() {
   const [currentPage, setCurrentPage] = useState<'input' | 'analyze' | 'history'>('input');
-  const { selectedProvider, providers, images, cancelAnalysis, isAnalyzing, resetCancelledFlag } = useTradingStore();
+  const { selectedProvider, providers, images, symbol, cancelAnalysis, isAnalyzing, resetCancelledFlag } = useTradingStore();
 
-  const canAnalyze = selectedProvider && providers[selectedProvider]?.apiKey && providers[selectedProvider]?.selectedModel;
+  const hasInput = images.length > 0 || symbol.trim().length > 0;
+  const hasProvider = selectedProvider && providers[selectedProvider]?.apiKey && providers[selectedProvider]?.selectedModel;
+  const canAnalyze = hasProvider && hasInput;
 
   // Handle navigation with cleanup
   const handleNavigateToInput = useCallback(() => {
@@ -1456,7 +1550,9 @@ export default function TradingPlatform() {
 
         {!canAnalyze && (
           <p className="text-center text-sm text-muted-foreground mt-2">
-            Please configure your provider, API key, and select a model to start analysis
+            {!hasProvider
+              ? 'Please configure your provider, API key, and select a model'
+              : 'Upload a chart image or enter a symbol to start analysis'}
           </p>
         )}
       </div>

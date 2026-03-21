@@ -32,6 +32,7 @@ export interface Model {
 export type TradingTool =
   | 'fetch_prices'
   | 'fetch_news'
+  | 'fetch_prediction'
   | 'calculate_indicators'
   | 'calculate_rsi'
   | 'calculate_macd'
@@ -91,6 +92,14 @@ export interface AppSettings {
   defaultProvider?: ProviderType;
 }
 
+// Trading parameters for position sizing
+export interface TradingParams {
+  balance?: number;
+  riskReward?: string; // e.g., "1:2", "1:3"
+  lotSize?: number;
+  riskPercent?: number; // % of balance willing to risk per trade
+}
+
 // API request/response types
 export interface AnalyzeRequest {
   images: string[]; // base64 encoded
@@ -99,6 +108,7 @@ export interface AnalyzeRequest {
   provider: ProviderType;
   model: string;
   apiKey: string;
+  tradingParams?: TradingParams;
 }
 
 export interface ToolResult {

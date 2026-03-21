@@ -2,11 +2,12 @@
 
 import { create } from 'zustand';
 import { persist } from 'zustand/middleware';
-import { 
-  ProviderType, 
-  AnalysisResult, 
+import {
+  ProviderType,
+  AnalysisResult,
   ProviderSettings,
-  ToolCall 
+  ToolCall,
+  TradingParams
 } from '@/types/trading';
 
 // Image with unique ID for proper React keys
@@ -24,6 +25,7 @@ interface TradingState {
   images: ImageWithId[];
   symbol: string;
   context: string;
+  tradingParams: TradingParams;
   
   // Analysis history
   analysisHistory: AnalysisResult[];
@@ -52,6 +54,7 @@ interface TradingState {
   
   setSymbol: (symbol: string) => void;
   setContext: (context: string) => void;
+  setTradingParams: (params: TradingParams) => void;
   
   addAnalysis: (analysis: AnalysisResult) => void;
   clearHistory: () => void;
@@ -73,6 +76,7 @@ export const useTradingStore = create<TradingState>()(
       images: [],
       symbol: '',
       context: '',
+      tradingParams: {},
       analysisHistory: [],
       isAnalyzing: false,
       currentToolCalls: [],
@@ -124,6 +128,7 @@ export const useTradingStore = create<TradingState>()(
       // Input actions
       setSymbol: (symbol) => set({ symbol }),
       setContext: (context) => set({ context }),
+      setTradingParams: (params) => set({ tradingParams: params }),
       
       // History actions
       addAnalysis: (analysis) => set((state) => ({
