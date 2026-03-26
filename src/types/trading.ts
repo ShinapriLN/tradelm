@@ -1,11 +1,12 @@
 // Provider types
-export type ProviderType = 
-  | 'openai' 
-  | 'claude' 
-  | 'gemini' 
-  | 'deepseek' 
-  | 'groq' 
-  | 'openrouter' 
+export type ProviderType =
+  | 'openai'
+  | 'claude'
+  | 'gemini'
+  | 'deepseek'
+  | 'groq'
+  | 'openrouter'
+  | 'nvidia'
   | 'qwen'
   | 'ollama';
 

@@ -57,6 +57,14 @@ export const PROVIDERS: Record<ProviderType, Provider> = {
     modelsEndpoint: '/models',
     chatEndpoint: '/models/{model}:generateContent',
   },
+  nvidia: {
+    id: 'nvidia',
+    name: 'NVIDIA NIM',
+    baseUrl: 'https://integrate.api.nvidia.com/v1',
+    apiKeyPrefix: 'nvapi-',
+    modelsEndpoint: '/models',
+    chatEndpoint: '/chat/completions',
+  },
   ollama: {
     id: 'ollama',
     name: 'Ollama (Local)',
@@ -82,6 +90,7 @@ export const VISION_CAPABLE_MODELS: Partial<Record<ProviderType, string[]>> = {
   groq: ['llama-3.2-11b-vision', 'llama-3.2-90b-vision', 'llava-v1.5-7b'],
   openrouter: ['google/gemini-pro-vision', 'anthropic/claude-3-opus', 'openai/gpt-4-vision-preview', 'meta-llama/llama-3.2-11b-vision-instruct'],
   qwen: ['qwen-vl-plus', 'qwen-vl-max', 'qwen2.5-vl'],
+  nvidia: ['llama-3.2-11b-vision', 'llama-3.2-90b-vision', 'phi-3.5-vision', 'phi-3-vision', 'phi-4-multimodal', 'neva', 'vila', 'cosmos-reason', 'nemotron-nano-vl'],
   ollama: ['llava', 'bakllava', 'moondream', 'minicpm-v'],
 };
 
@@ -94,5 +103,6 @@ export const TOOL_CAPABLE_MODELS: Partial<Record<ProviderType, string[]>> = {
   groq: ['llama-3.1-70b-versatile', 'llama-3.1-8b-instant', 'mixtral-8x7b-32768'],
   openrouter: ['anthropic/claude-3-opus', 'openai/gpt-4-turbo', 'google/gemini-pro', 'meta-llama/llama-3.1-70b-instruct'],
   qwen: ['qwen-turbo', 'qwen-plus', 'qwen-max', 'qwen2.5'],
+  nvidia: ['llama-3.1', 'llama-3.3', 'llama-4', 'mistral', 'nemotron', 'deepseek', 'qwen', 'mixtral', 'phi-4-mini'],
   ollama: ['llama3.1', 'llama3.2', 'mistral', 'qwen2.5'],
 };

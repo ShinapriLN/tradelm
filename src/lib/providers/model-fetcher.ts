@@ -147,6 +147,74 @@ async function fetchGeminiModels(apiKey: string): Promise<FetchModelsResult> {
   }
 }
 
+// Fetch models from NVIDIA NIM
+async function fetchNvidiaModels(apiKey: string): Promise<FetchModelsResult> {
+  try {
+    const response = await fetch('https://integrate.api.nvidia.com/v1/models', {
+      headers: {
+        'Authorization': `Bearer ${apiKey}`,
+        'Content-Type': 'application/json',
+      },
+    });
+
+    if (!response.ok) {
+      const errorText = await response.text();
+      return { success: false, models: [], error: `API error: ${response.status} - ${errorText}` };
+    }
+
+    const data = await response.json();
+    const allModels = data.data || [];
+
+    // Filter to only chat/instruct models, exclude non-chat model types
+    const excludePatterns = [
+      'embed', 'rerank', 'rerank', 'safety', 'guard', 'nemo-guard',
+      'reward', 'grpo', 'parse', 'ocdr', 'extract', 'classify',
+      'segm', 'detect', 'track', 'generat', // image generation/detection
+      'parakeet', 'canary', 'riva', // speech models
+      'nv-wav2vec', 'whisper', // audio models
+      'sdxl', 'stable-diffusion', 'consistory', 'shutterstock', // image gen
+      'kosmos', 'deplot', 'pix2struct', // doc understanding (not chat)
+      'grounding-dino', 'sam', 'segment-anything', // vision-only
+      'molmim', 'esm', 'proteinmpnn', 'diffdock', 'megamolbart', // biology
+      'steerllm', // steering models
+    ];
+
+    const chatModels: Model[] = allModels
+      .filter((model: { id: string }) => {
+        const id = model.id.toLowerCase();
+        // Exclude models matching non-chat patterns
+        if (excludePatterns.some(p => id.includes(p))) return false;
+        // Include models that look like chat/instruct models
+        return id.includes('instruct') || id.includes('chat') ||
+               id.includes('llama') || id.includes('mistral') ||
+               id.includes('mixtral') || id.includes('nemotron') ||
+               id.includes('deepseek') || id.includes('qwen') ||
+               id.includes('phi-') || id.includes('gemma') ||
+               id.includes('yi-') || id.includes('arctic') ||
+               id.includes('dbrx') || id.includes('command') ||
+               id.includes('jamba') || id.includes('granite') ||
+               id.includes('llava') || id.includes('vila') ||
+               id.includes('cosmos-reason') || id.includes('neva') ||
+               id.includes('fuyu') || id.includes('minicpm');
+      })
+      .map((model: { id: string }) => ({
+        id: model.id,
+        name: model.id,
+        provider: 'nvidia' as ProviderType,
+        supportsVision: supportsVision('nvidia', model.id),
+        supportsTools: supportsTools('nvidia', model.id),
+      }));
+
+    return { success: true, models: chatModels };
+  } catch (error) {
+    return {
+      success: false,
+      models: [],
+      error: error instanceof Error ? error.message : 'Unknown error',
+    };
+  }
+}
+
 // Fetch models from OpenRouter
 async function fetchOpenRouterModels(): Promise<FetchModelsResult> {
   try {
@@ -189,6 +257,8 @@ export async function fetchModels(
     case 'openrouter':
       // OpenRouter allows fetching models without API key
       return fetchOpenRouterModels();
+    case 'nvidia':
+      return fetchNvidiaModels(apiKey);
     case 'openai':
     case 'deepseek':
     case 'groq':
