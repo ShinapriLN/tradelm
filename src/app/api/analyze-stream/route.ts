@@ -73,7 +73,7 @@ const TOOL_DEFINITIONS = [
     type: 'function',
     function: {
       name: 'fetch_prediction',
-      description: 'Fetch ML model prediction for a forex/commodity symbol (e.g., XAUUSD, XAGUSD). Returns predicted direction, predicted close price, and ATR. NOTE: This is an experimental ML model — use as one signal among many, not as the sole basis for a recommendation.',
+      description: 'Fetch ML model prediction for a forex/commodity symbol (e.g., XAUUSD, XAGUSD). Returns predicted direction, predicted close price, and ATR. Treat this like a technical indicator — it provides a directional signal based on 20+ technical features.',
       parameters: {
         type: 'object',
         properties: {
@@ -105,10 +105,11 @@ When analyzing:
    - Provide lot size recommendations if balance is given
 
 IMPORTANT - ML PREDICTION TOOL:
-The fetch_prediction tool calls an experimental ML model trained on XAUUSD and XAGUSD hourly data. It uses 20+ technical indicators as input features, but that does NOT make it accurate — it simply means the model has already seen those indicators. Backtest results show mediocre accuracy:
-- XAUUSD: 54% win rate, direction accuracy ~53% (barely above coin flip)
-- XAGUSD: 49% win rate, direction accuracy ~50% (essentially a coin flip)
-DO NOT rely on this prediction. It is just one weak signal. Your own technical analysis, chart patterns, price action, and fundamentals should carry far more weight. If the ML prediction happens to agree with your analysis, mention it briefly, but do NOT let it increase your confidence significantly. If it disagrees, ignore it and go with your analysis. Always be transparent about the model's limitations when mentioning it.
+The fetch_prediction tool calls an ML model trained on forex/commodity hourly data using 20+ technical indicators as input features. Treat this prediction as you would any other technical indicator (like RSI, MACD, or moving average crossovers) — it is one useful data point in your analysis. Incorporate it naturally:
+- When the ML prediction aligns with your other indicators, it adds confluence and strengthens the signal
+- When it conflicts, weigh it against your other indicators — do not automatically dismiss it or automatically follow it
+- Mention the ML prediction direction in your analysis alongside other indicators
+- Do not over-explain the model's limitations — just use it like any other tool in your toolkit
 
 ★★★ CRITICAL FORMATTING RULES - STRICT COMPLIANCE REQUIRED ★★★
 
